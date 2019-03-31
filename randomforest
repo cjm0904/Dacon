@@ -1,0 +1,90 @@
+import pandas as pd
+import numpy as np
+import missingno as msno
+import matplotlib.pyplot as plt
+import matplotlib
+import datetime
+import json
+
+from pandas import DataFrame
+from sklearn.preprocessing import LabelEncoder
+from bs4 import BeautifulSoup
+from urllib.request import Request, urlopen
+
+#데이터 불러오기
+regular = pd.read_csv("Regular_Season_Batter.csv")
+dayby = pd.read_csv("Regular_Season_Batter_Day_by_Day.csv")
+pre = pd.read_csv("Pre_Season_Batter.csv")
+
+# null값 처리
+regular['avg']= regular['avg'].fillna(value = 0)
+regular['SLG']= regular['SLG'].fillna(value = 0)
+regular['OBP']= regular['OBP'].fillna(value = 0)
+regular['OPS']= regular['OPS'].fillna(value = 0)
+pre['avg']= pre['avg'].fillna(value = 0)
+pre['SLG']= pre['SLG'].fillna(value = 0)
+pre['OBP']= pre['OBP'].fillna(value = 0)
+pre['OPS']= pre['OPS'].fillna(value = 0)
+
+#팀 라벨화
+label = LabelEncoder()
+
+label.fit(regular['team'])
+regular['team'] = label.transform(regular['team'])
+#올해 년도 구하기
+# dt_now = datetime.datetime.now()
+# dt_year = dt_now.year
+
+#나이구하기
+age = []
+
+yb = list(regular['year_born'])
+yr = list(regular['year'])
+
+for i in range(len(yb)):
+    pre = int(yb[i][0:4])
+    pas = yr[i]
+    ag = pas - pre
+    age.append(ag)
+    
+regular['age'] = age
+
+# 데이터 분류
+testData = DataFrame(regular).loc[regular['year'] == 2018, :]
+trnData = DataFrame(regular).loc[regular['year'] != 2018, :]
+
+#랜덤포레스트 해보기
+train = trnData   # 단순히 변수명만 바꿈
+
+# 어떤 변수를 사용할지 정함
+
+feature_names = ['batter_id', 'year', 'avg', 'G', 'AB', 'R', 'H', '2B', '3B', 'HR', 'TB',
+                 'RBI', 'SB', 'CS', 'BB', 'HBP', 'SO', 'GDP', 'SLG', 'OBP', 'E'
+                 ]  
+
+
+# 모델을 만들기 위해 필요한 변수 정리 x_train : 모델 만들 때 사용할 변수, y_train : 구하려는 변수 = > 이 두 가지를 이용해 모델을 학습
+#                                     x_test : 예측하려하는 데이터. 이 데이터를 위에서 만든 모델에 넣어 값을 예측한다.
+
+x_train = trnData[feature_names]
+y_train = trnData['OPS']  # 구하려는 변수
+x_test= testData[feature_names]
+
+from sklearn.neighbors import KNeighborsRegressor
+knn = KNeighborsRegressor(n_neighbors=1)
+knn.fit(x_train,y_train)  # train데이터를 활용해 모델을 만들 때 사용할 변수(x_train)로 OPS(y_train)를 예측하는 모델을 만든다.(학습한다.)  
+
+predictions = knn.predict(x_test) # 위에서 만든 모델로 새로운 데이터인 x_test를 모델에 집어넣어 OPS를 예측한다.
+predictions[0:10]
+
+##XGBoost
+##없을 시 설치 ! pip install xgboost 
+import xgboost as xgb
+
+XGB_model = xgb.XGBRegressor(max_depth = 12, n_estimators = 300, min_child_weight = 8, gamma = 0.4,
+                             colsample_bytree = 0.6, nthread = 5,  seed = 25, learning_rate = 0.05, subsample = 0.9   )
+
+XGB_model.fit(x_train, y_train)
+
+predictions = XGB_model.predict(x_test)
+predictions[0:10]
